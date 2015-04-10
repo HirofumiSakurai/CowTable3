@@ -37,14 +37,14 @@ instance ToJSON Day where
     toJSON day = String (T.pack $ showGregorian day)
 
 share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
-Owner json
+Owners json
     name  T.Text
-Cow json
+Kine json
     earNum Int
     name   T.Text
     birth Day
     sex    T.Text
-    ownerId OwnerId
+    ownerId OwnersId
     t1     Int Maybe
     t2     Int Maybe
     t3     Int Maybe
@@ -167,27 +167,27 @@ getESelectR = do
         nameConv (Nothing) = T.pack "Owner5"
         cowsSrc ownerName = 
           E.selectSource
-            $ E.from $ \(cow `E.InnerJoin` owner) -> do
-                E.on $ cow ^. CowOwnerId E.==. owner ^. OwnerId
-                E.where_ $ owner ^. OwnerName `E.like` E.val ownerName
+            $ E.from $ \(kine `E.InnerJoin` owners) -> do
+                E.on $ kine ^. KineOwnerId E.==. owners ^. OwnersId
+                E.where_ $ owners ^. OwnersName `E.like` E.val ownerName
                 return $ (
-                  cow ^. CowEarNum, cow ^. CowName, cow ^. CowBirth,
-                  cow ^. CowSex, owner ^. OwnerName,
-                  (cow ^. CowT1, cow ^. CowT2, cow ^. CowT3, cow ^. CowT4,
-                   cow ^. CowT5, cow ^. CowT6, cow ^. CowT7, cow ^. CowT8,
-                   cow ^. CowT9, cow ^. CowT10),
-                  (cow ^. CowT11, cow ^. CowT12, cow ^. CowT13, cow ^. CowT14,
-                   cow ^. CowT15, cow ^. CowT16, cow ^. CowT17, cow ^. CowT18,
-                   cow ^. CowT19, cow ^. CowT20),
-                  (cow ^. CowT21, cow ^. CowT22, cow ^. CowT23, cow ^. CowT24,
-                   cow ^. CowT25, cow ^. CowT26, cow ^. CowT27, cow ^. CowT28,
-                   cow ^. CowT29, cow ^. CowT30),
-                  (cow ^. CowT31, cow ^. CowT32, cow ^. CowT33, cow ^. CowT34,
-                   cow ^. CowT35, cow ^. CowT36, cow ^. CowT37, cow ^. CowT38,
-                   cow ^. CowT39, cow ^. CowT40),
-                  (cow ^. CowT41, cow ^. CowT42, cow ^. CowT43, cow ^. CowT44,
-                   cow ^. CowT45, cow ^. CowT46, cow ^. CowT47, cow ^. CowT48,
-                   cow ^. CowT49, cow ^. CowT50))
+                  kine ^. KineEarNum, kine ^. KineName, kine ^. KineBirth,
+                  kine ^. KineSex, owners ^. OwnersName,
+                  (kine ^. KineT1, kine ^. KineT2, kine ^. KineT3, kine ^. KineT4,
+                   kine ^. KineT5, kine ^. KineT6, kine ^. KineT7, kine ^. KineT8,
+                   kine ^. KineT9, kine ^. KineT10),
+                  (kine ^. KineT11, kine ^. KineT12, kine ^. KineT13, kine ^. KineT14,
+                   kine ^. KineT15, kine ^. KineT16, kine ^. KineT17, kine ^. KineT18,
+                   kine ^. KineT19, kine ^. KineT20),
+                  (kine ^. KineT21, kine ^. KineT22, kine ^. KineT23, kine ^. KineT24,
+                   kine ^. KineT25, kine ^. KineT26, kine ^. KineT27, kine ^. KineT28,
+                   kine ^. KineT29, kine ^. KineT30),
+                  (kine ^. KineT31, kine ^. KineT32, kine ^. KineT33, kine ^. KineT34,
+                   kine ^. KineT35, kine ^. KineT36, kine ^. KineT37, kine ^. KineT38,
+                   kine ^. KineT39, kine ^. KineT40),
+                  (kine ^. KineT41, kine ^. KineT42, kine ^. KineT43, kine ^. KineT44,
+                   kine ^. KineT45, kine ^. KineT46, kine ^. KineT47, kine ^. KineT48,
+                   kine ^. KineT49, kine ^. KineT50))
         toBuilder flags (E.Value earNum, E.Value name, E.Value birth,
           E.Value sex, E.Value ownerName ,
           (E.Value t1, E.Value  t2, E.Value  t3, E.Value  t4, E.Value  t5,
@@ -241,4 +241,4 @@ connStr = "host=localhost dbname=cow_table user=hirofumi password='hello'"
 
 main :: IO ()
 main = runStderrLoggingT $ withPostgresqlPool connStr openConnectionCount $ \pool -> liftIO $ do
-    warp 3000 $ App {appPool = pool}
+    warp 3001 $ App {appPool = pool}
