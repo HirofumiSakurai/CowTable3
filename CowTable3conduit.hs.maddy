@@ -19,7 +19,8 @@ import           Database.Persist.Postgresql
 import           Database.Persist.TH
 import           Data.Time (Day, fromGregorian, showGregorian)
 import           Data.Time.Clock
-import           Data.Conduit            (awaitForever, ($=))
+import           Data.Conduit            (($=), (=$),Sink,awaitForever)
+import qualified Data.Conduit.List as CL
 import           Yesod
 
 data App = App
@@ -160,7 +161,8 @@ getESelectR = do
   ownerName' <- (runInputGet $ iopt textField "OwnerName")
   let ownerName = nameConv ownerName'
   -- liftIO $ print flags
-  respondSourceDB typeJson $ cowsSrc ownerName $= awaitForever (toBuilder flags)
+  respondSourceDB typeJson $
+    cowsSrc ownerName $= awaitForever (toBuilder flags) =$ outputJSON
     where
         flagConv (Just "1") = True
         flagConv (Just "True") = True
@@ -203,16 +205,16 @@ getESelectR = do
           (E.Value t41, E.Value t42, E.Value t43, E.Value t44, E.Value t45,
           E.Value t46, E.Value t47, E.Value t48, E.Value t49, E.Value t50))
           = do 
-            sendChunkLBS $ encode $ object $ aesonList
+            object $ aesonList
             where
 --              flags = [True, True, True,True, True, False, True]
               aesonList = concat $ map snd $ filter (\(f,e)->f) $ zip flags aesonOrig
               aesonOrig = [
-                 ["ear_num".= earNum]
+                 ["earNum".= earNum]
                 ,["name" .= name]
                 ,["birth" .= birth]
                 ,["sex" .= sex]
-                ,["owner_name" .= ownerName]
+                ,["ownerName" .= ownerName]
                 ,["t1"  .=  t1, "t2" .=  t2, "t3" .=  t3, "t4" .=  t4,  "t5" .=  t5
                  ,"t6"  .=  t6, "t7" .=  t7, "t8" .=  t8, "t9" .=  t9,"t10" .= t10]
                 ,["t11" .= t11,"t12" .= t12,"t13" .= t13,"t14" .= t14,"t15" .= t15,
@@ -242,7 +244,8 @@ getKineJsonR = do
   let name = nameConv name'
       owner = (read $ T.unpack $ ownerConv owner') 
   -- liftIO $ print flags
-  respondSourceDB typeJson $ cowsSrc name owner $= awaitForever toBuilder
+  respondSourceDB typeJson $
+    cowsSrc name owner $= awaitForever toBuilder =$ outputJSON
     where
         nameConv (Just name) = name
         nameConv (Nothing) = T.pack "%"
@@ -253,7 +256,7 @@ getKineJsonR = do
             $ E.from $ \(kine) -> do
                 E.where_ $ (kine ^. KineOwnerId E.==. E.valkey owner)
                            E.&&. ( kine ^. KineName `E.like` E.val name)
-                return $ ( kine ^. KineId,
+                return $ (
                   kine ^. KineEarNum, kine ^. KineName, kine ^. KineBirth,
                   kine ^. KineSex, kine ^. KineOwnerId,
                   (kine ^. KineT1, kine ^. KineT2, kine ^. KineT3, kine ^. KineT4,
@@ -271,7 +274,7 @@ getKineJsonR = do
                   (kine ^. KineT41, kine ^. KineT42, kine ^. KineT43, kine ^. KineT44,
                    kine ^. KineT45, kine ^. KineT46, kine ^. KineT47, kine ^. KineT48,
                    kine ^. KineT49, kine ^. KineT50))
-        toBuilder (E.Value id, E.Value earNum, E.Value name, E.Value birth,
+        toBuilder (E.Value earNum, E.Value name, E.Value birth,
           E.Value sex, E.Value ownerId ,
           (E.Value t1, E.Value  t2, E.Value  t3, E.Value  t4, E.Value  t5,
           E.Value t6, E.Value  t7, E.Value  t8, E.Value  t9, E.Value t10),
@@ -284,15 +287,14 @@ getKineJsonR = do
           (E.Value t41, E.Value t42, E.Value t43, E.Value t44, E.Value t45,
           E.Value t46, E.Value t47, E.Value t48, E.Value t49, E.Value t50))
           = do 
-            sendChunkLBS $ encode $ object $ aesonList
+            object $ aesonList
             where
               aesonList = [
-                "id" .= id
-                ,"ear_num".= earNum
+                 "earNum".= earNum
                 ,"name" .= name
                 ,"birth" .= birth
                 ,"sex" .= sex
-                ,"owner_id" .= ownerId
+                ,"ownerId" .= ownerId
                 ,"t1"  .=  t1, "t2" .=  t2, "t3" .=  t3, "t4" .=  t4,  "t5" .=  t5
                  ,"t6"  .=  t6, "t7" .=  t7, "t8" .=  t8, "t9" .=  t9,"t10" .= t10
                 ,"t11" .= t11,"t12" .= t12,"t13" .= t13,"t14" .= t14,"t15" .= t15,
@@ -303,6 +305,15 @@ getKineJsonR = do
                   "t36" .= t36,"t37" .= t37,"t38" .= t38,"t39" .= t39,"t40" .= t40
                 ,"t41" .= t41,"t42" .= t42,"t43" .= t43,"t44" .= t44,"t45" .= t45,
                   "t46" .= t46,"t47" .= t47,"t48" .= t48,"t49" .= t49,"t50" .= t50]
+
+outputJSON :: Sink [Value] IO ()
+outputJSON = do
+  row <- CL.head
+  case row of
+   Nothing -> return ()
+   Just e -> do
+     sendChunkLBS $ encode $ e
+
 
 openConnectionCount :: Int
 openConnectionCount = 10
