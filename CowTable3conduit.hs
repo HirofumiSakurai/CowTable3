@@ -101,8 +101,8 @@ Kine json
 mkYesod "App" [parseRoutes|
 /        HomeR    GET
 /eSelect ESelectR GET
-/kine    KineR    GET
-/kine.json KineJsonR GET
+/yesod    KineR    GET
+/yesod.json KineJsonR GET
 |]
 
 instance Yesod App
