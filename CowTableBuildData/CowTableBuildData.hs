@@ -2,9 +2,12 @@ import           Database.HDBC
 import           Database.HDBC.PostgreSQL
 import           Data.Time.Calendar (fromGregorian, addDays)
 
+connStr = "host=localhost dbname=cow_table user=hirofumi password='hello'"
+-- connStr = "host=my-db-instance.ch8pskdbgy45.ap-northeast-1.rds.amazonaws.com:5432 dbname=cow_table user=hirofumi password='##############'"
+
 main :: IO ()
 main = do
-  conn <- connectPostgreSQL "host=localhost dbname=cow_table user=hirofumi password='hello'"
+  conn <- connectPostgreSQL connStr
   -- run conn "CREATE TABLE owner (id INTEGER NOT NULL, name VARCHAR(80))" []
   -- run conn ("CREATE TABLE cow  (" ++ rows ++ ")") []
   commit conn

@@ -8,6 +8,7 @@
 {-# LANGUAGE TypeFamilies      #-}
 
 import qualified Data.Text as T
+import qualified Data.ByteString as BS
 import           Control.Monad
 import           Control.Monad.Logger (runStderrLoggingT)
 import           Data.Aeson
@@ -307,8 +308,12 @@ getKineJsonR = do
 openConnectionCount :: Int
 openConnectionCount = 10
 
-connStr = "host=localhost dbname=cow_table user=hirofumi password='hello'"
+ connStr = "host=localhost dbname=cow_table user=hirofumi password='hello'"
+-- connStr = "host=my-db-instance.ch8pskdbgy45.ap-northeast-1.rds.amazonaws.com:5432 dbname=cow_table user=hirofumi password='###########'"
 
 main :: IO ()
-main = runStderrLoggingT $ withPostgresqlPool connStr openConnectionCount $ \pool -> liftIO $ do
+main = do
+  -- connStr' <- readFile "connStr.conf"
+  -- connStr <- BS.pack $ connStr'
+  runStderrLoggingT $ withPostgresqlPool connStr openConnectionCount $ \pool -> liftIO $ do
     warp 3001 $ App {appPool = pool}
