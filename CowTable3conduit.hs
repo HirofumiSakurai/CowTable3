@@ -308,8 +308,8 @@ getKineJsonR = do
 openConnectionCount :: Int
 openConnectionCount = 10
 
- connStr = "host=localhost dbname=cow_table user=hirofumi password='hello'"
--- connStr = "host=my-db-instance.ch8pskdbgy45.ap-northeast-1.rds.amazonaws.com:5432 dbname=cow_table user=hirofumi password='###########'"
+connStr = "host=localhost dbname=cow_table user=hirofumi password='hello'"
+-- connStr = "host=my-db-instance.ch8pskdbgy45.ap-northeast-1.rds.amazonaws.com dbname=cow_table user=hirofumi password='############'"
 
 main :: IO ()
 main = do

@@ -22,3 +22,11 @@ executable CowTableBuildData
   build-depends:       base >=4.7 && <4.8, time, HDBC, HDBC-postgresql
   -- hs-source-dirs:      
   default-language:    Haskell2010
+
+executable SQL2str
+  main-is:             SQL2str.hs
+  -- other-modules:       
+  -- other-extensions:    
+  build-depends:       base >=4.7 && <4.8, time, HDBC, HDBC-postgresql, text, yesod, blaze-markup
+  -- hs-source-dirs:      
+  default-language:    Haskell2010
