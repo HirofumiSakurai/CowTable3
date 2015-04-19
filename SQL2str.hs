@@ -10,7 +10,8 @@
 -- import           Data.Text.Encoding (decodeUtf8)
 import qualified Data.Text as T
 import           Control.Monad.Logger (runStderrLoggingT)
-import           Data.Conduit            (awaitForever, ($$))
+import qualified Data.Conduit.List as CL
+import           Data.Conduit            (awaitForever, ($$), ($=), Conduit, Sink)
 import           Database.Persist
 import           Database.Persist.Postgresql
 import           Database.Persist.TH
@@ -28,6 +29,16 @@ instance Yesod App
 instance RenderMessage App FormMessage where
     renderMessage _ _ = defaultFormMessage
 
+instance YesodPersist App where
+    type YesodPersistBackend App = SqlBackend
+
+    runDB action = do
+        App pool <- getYesod
+        runSqlPool action pool
+
+instance YesodPersistRunner App where
+    getDBRunner = defaultGetDBRunner appPool
+
 getHomeR :: Handler Html
 getHomeR = do
   defaultLayout [whamlet|
@@ -44,13 +55,15 @@ getSQL2strR :: Handler TypedContent
 getSQL2strR = do
   query' <- (runInputGet $ iopt textField "SQL")
   respondSourceDB typeJson $
-    rawQuery (queryConv query') [] $$ awaitForever sendJSONs
+    rawQuery (queryConv query') [] $= awaitForever sendJSONs
     where
       queryConv (Just "") = defaultQuery
       queryConv (Just query) = query
       queryConv Nothing = defaultQuery
       defaultQuery = "SELECT to_json(kine) FROM kine where ownerId = 1"
-      sendJSONs = do mapM_ (sendChunk . show)
+
+-- sendJSONs :: Monad m => [PersistValue] -> Conduit [PersistValue]  () m 
+sendJSONs = \j -> mapM_ (sendChunk . show) j
 
 numConn = 10
 connStr = "host=localhost dbname=cow_table user=hirofumi password='hello'"

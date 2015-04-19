@@ -20,7 +20,7 @@ import           Database.Persist.Postgresql
 import           Database.Persist.TH
 import           Data.Time (Day, fromGregorian, showGregorian)
 import           Data.Time.Clock
-import           Data.Conduit            (awaitForever, ($=))
+import           Data.Conduit  -- (awaitForever, ($=), Source, Conduit, Sink, yield)
 import           Yesod
 
 data App = App
@@ -121,10 +121,6 @@ instance YesodPersist App where
 instance YesodPersistRunner App where
     getDBRunner = defaultGetDBRunner appPool
 
-data CowQuery = CowQuery {
-  ear :: Maybe Int, name :: Maybe T.Text, sex :: T.Text, ownerId :: Maybe T.Text,
-  t0 :: Bool, t1 :: Bool, t2 :: Bool, t3 :: Bool, t4 :: Bool }
-
 getHomeR :: Handler Html
 getHomeR = defaultLayout $ do
   setTitle "CowTable3conduit"
@@ -148,10 +144,6 @@ getHomeR = defaultLayout $ do
     <p>
     <input type="submit" value="送信">
                  |]
-    -- 検索条件(where):
-    -- <input name="where" type="text" value="owner.name = 'Owner5'">
-    -- <p>
-
 getESelectR :: Handler TypedContent
 getESelectR = do
   flags' <- mapM (\t -> runInputGet $ iopt textField t)
@@ -161,69 +153,138 @@ getESelectR = do
   ownerName' <- (runInputGet $ iopt textField "OwnerName")
   let ownerName = nameConv ownerName'
   -- liftIO $ print flags
-  respondSourceDB typeJson $ cowsSrc ownerName $= awaitForever (toBuilder flags)
+  respondSourceDB typeJson $ 
+         (cowsSrc ownerName) $=
+         (awaitForever toAesonList) $=
+         (awaitForever $ filterAesonList flags) $= 
+         outputAesonList
     where
         flagConv (Just "1") = True
         flagConv (Just "True") = True
         flagConv _ = False
         nameConv (Just name) = name
         nameConv (Nothing) = T.pack "Owner5"
-        cowsSrc ownerName = 
-          E.selectSource
-            $ E.from $ \(kine `E.InnerJoin` owners) -> do
-                E.on $ kine ^. KineOwnerId E.==. owners ^. OwnersId
-                E.where_ $ owners ^. OwnersName `E.like` E.val ownerName
-                return $ (
-                  kine ^. KineEarNum, kine ^. KineName, kine ^. KineBirth,
-                  kine ^. KineSex, owners ^. OwnersName,
-                  (kine ^. KineT1, kine ^. KineT2, kine ^. KineT3, kine ^. KineT4,
-                   kine ^. KineT5, kine ^. KineT6, kine ^. KineT7, kine ^. KineT8,
-                   kine ^. KineT9, kine ^. KineT10),
-                  (kine ^. KineT11, kine ^. KineT12, kine ^. KineT13, kine ^. KineT14,
-                   kine ^. KineT15, kine ^. KineT16, kine ^. KineT17, kine ^. KineT18,
-                   kine ^. KineT19, kine ^. KineT20),
-                  (kine ^. KineT21, kine ^. KineT22, kine ^. KineT23, kine ^. KineT24,
-                   kine ^. KineT25, kine ^. KineT26, kine ^. KineT27, kine ^. KineT28,
-                   kine ^. KineT29, kine ^. KineT30),
-                  (kine ^. KineT31, kine ^. KineT32, kine ^. KineT33, kine ^. KineT34,
-                   kine ^. KineT35, kine ^. KineT36, kine ^. KineT37, kine ^. KineT38,
-                   kine ^. KineT39, kine ^. KineT40),
-                  (kine ^. KineT41, kine ^. KineT42, kine ^. KineT43, kine ^. KineT44,
-                   kine ^. KineT45, kine ^. KineT46, kine ^. KineT47, kine ^. KineT48,
-                   kine ^. KineT49, kine ^. KineT50))
-        toBuilder flags (E.Value earNum, E.Value name, E.Value birth,
-          E.Value sex, E.Value ownerName ,
-          (E.Value t1, E.Value  t2, E.Value  t3, E.Value  t4, E.Value  t5,
-          E.Value t6, E.Value  t7, E.Value  t8, E.Value  t9, E.Value t10),
-          (E.Value t11, E.Value t12, E.Value t13, E.Value t14, E.Value t15,
-          E.Value t16, E.Value t17, E.Value t18, E.Value t19, E.Value t20),
-          (E.Value t21, E.Value t22, E.Value t23, E.Value t24, E.Value t25,
-          E.Value t26, E.Value t27, E.Value t28, E.Value t29, E.Value t30),
-          (E.Value t31, E.Value t32, E.Value t33, E.Value t34, E.Value t35,
-          E.Value t36, E.Value t37, E.Value t38, E.Value t39, E.Value t40),
-          (E.Value t41, E.Value t42, E.Value t43, E.Value t44, E.Value t45,
-          E.Value t46, E.Value t47, E.Value t48, E.Value t49, E.Value t50))
-          = do 
-            sendChunkLBS $ encode $ object $ aesonList
-            where
---              flags = [True, True, True,True, True, False, True]
-              aesonList = concat $ map snd $ filter (\(f,e)->f) $ zip flags aesonOrig
-              aesonOrig = [
-                 ["ear_num".= earNum]
-                ,["name" .= name]
-                ,["birth" .= birth]
-                ,["sex" .= sex]
-                ,["owner_name" .= ownerName]
-                ,["t1"  .=  t1, "t2" .=  t2, "t3" .=  t3, "t4" .=  t4,  "t5" .=  t5
-                 ,"t6"  .=  t6, "t7" .=  t7, "t8" .=  t8, "t9" .=  t9,"t10" .= t10]
-                ,["t11" .= t11,"t12" .= t12,"t13" .= t13,"t14" .= t14,"t15" .= t15,
-                  "t16" .= t16,"t17" .= t17,"t18" .= t18,"t19" .= t19,"t20" .= t20]
-                ,["t21" .= t21,"t22" .= t22,"t23" .= t23,"t24" .= t24,"t25" .= t25,
-                  "t26" .= t26,"t27" .= t27,"t28" .= t28,"t29" .= t29,"t30" .= t30]
-                ,["t31" .= t31,"t32" .= t32,"t33" .= t33,"t34" .= t34,"t35" .= t35,
-                  "t36" .= t36,"t37" .= t37,"t38" .= t38,"t39" .= t39,"t40" .= t40]
-                ,["t41" .= t41,"t42" .= t42,"t43" .= t43,"t44" .= t44,"t45" .= t45,
-                  "t46" .= t46,"t47" .= t47,"t48" .= t48,"t49" .= t49,"t50" .= t50]]
+
+cowsSrc ::
+  MonadResource m =>
+    T.Text ->
+    Source
+      (SqlPersistT m)
+      (E.Value Int,E.Value T.Text,E.Value Day,E.Value T.Text,E.Value T.Text,
+           (E.Value (Maybe Int), E.Value (Maybe Int), E.Value (Maybe Int),
+            E.Value (Maybe Int), E.Value (Maybe Int), E.Value (Maybe Int),
+            E.Value (Maybe Int), E.Value (Maybe Int), E.Value (Maybe Int),
+            E.Value (Maybe Int)),
+           (E.Value (Maybe Int), E.Value (Maybe Int), E.Value (Maybe Int),
+            E.Value (Maybe Int), E.Value (Maybe Int), E.Value (Maybe Int),
+            E.Value (Maybe Int), E.Value (Maybe Int), E.Value (Maybe Int),
+            E.Value (Maybe Int)),
+           (E.Value (Maybe Int), E.Value (Maybe Int), E.Value (Maybe Int),
+            E.Value (Maybe Int), E.Value (Maybe Int), E.Value (Maybe Int),
+            E.Value (Maybe Int), E.Value (Maybe Int), E.Value (Maybe Int),
+            E.Value (Maybe Int)),
+           (E.Value (Maybe Int), E.Value (Maybe Int), E.Value (Maybe Int),
+            E.Value (Maybe Int), E.Value (Maybe Int), E.Value (Maybe Int),
+            E.Value (Maybe Int), E.Value (Maybe Int), E.Value (Maybe Int),
+            E.Value (Maybe Int)),
+           (E.Value (Maybe Int), E.Value (Maybe Int), E.Value (Maybe Int),
+            E.Value (Maybe Int), E.Value (Maybe Int), E.Value (Maybe Int),
+            E.Value (Maybe Int), E.Value (Maybe Int), E.Value (Maybe Int),
+            E.Value (Maybe Int)))
+cowsSrc ownerName = 
+  E.selectSource
+    $ E.from $ \(kine `E.InnerJoin` owners) -> do
+      E.on $ kine ^. KineOwnerId E.==. owners ^. OwnersId
+      E.where_ $ owners ^. OwnersName `E.like` E.val ownerName
+      return $ (
+          kine ^. KineEarNum, kine ^. KineName, kine ^. KineBirth,
+          kine ^. KineSex, owners ^. OwnersName,
+          (kine ^. KineT1, kine ^. KineT2, kine ^. KineT3, kine ^. KineT4,
+           kine ^. KineT5, kine ^. KineT6, kine ^. KineT7, kine ^. KineT8,
+           kine ^. KineT9, kine ^. KineT10),
+          (kine ^. KineT11, kine ^. KineT12, kine ^. KineT13, kine ^. KineT14,
+           kine ^. KineT15, kine ^. KineT16, kine ^. KineT17, kine ^. KineT18,
+           kine ^. KineT19, kine ^. KineT20),
+          (kine ^. KineT21, kine ^. KineT22, kine ^. KineT23, kine ^. KineT24,
+           kine ^. KineT25, kine ^. KineT26, kine ^. KineT27, kine ^. KineT28,
+           kine ^. KineT29, kine ^. KineT30),
+          (kine ^. KineT31, kine ^. KineT32, kine ^. KineT33, kine ^. KineT34,
+           kine ^. KineT35, kine ^. KineT36, kine ^. KineT37, kine ^. KineT38,
+           kine ^. KineT39, kine ^. KineT40),
+          (kine ^. KineT41, kine ^. KineT42, kine ^. KineT43, kine ^. KineT44,
+           kine ^. KineT45, kine ^. KineT46, kine ^. KineT47, kine ^. KineT48,
+           kine ^. KineT49, kine ^. KineT50))
+
+toAesonList ::
+  MonadResource m =>
+          (E.Value Int,E.Value T.Text,E.Value Day,E.Value T.Text,E.Value T.Text,
+           (E.Value (Maybe Int), E.Value (Maybe Int), E.Value (Maybe Int),
+            E.Value (Maybe Int), E.Value (Maybe Int), E.Value (Maybe Int),
+            E.Value (Maybe Int), E.Value (Maybe Int), E.Value (Maybe Int),
+            E.Value (Maybe Int)),
+           (E.Value (Maybe Int), E.Value (Maybe Int), E.Value (Maybe Int),
+            E.Value (Maybe Int), E.Value (Maybe Int), E.Value (Maybe Int),
+            E.Value (Maybe Int), E.Value (Maybe Int), E.Value (Maybe Int),
+            E.Value (Maybe Int)),
+           (E.Value (Maybe Int), E.Value (Maybe Int), E.Value (Maybe Int),
+            E.Value (Maybe Int), E.Value (Maybe Int), E.Value (Maybe Int),
+            E.Value (Maybe Int), E.Value (Maybe Int), E.Value (Maybe Int),
+            E.Value (Maybe Int)),
+           (E.Value (Maybe Int), E.Value (Maybe Int), E.Value (Maybe Int),
+            E.Value (Maybe Int), E.Value (Maybe Int), E.Value (Maybe Int),
+            E.Value (Maybe Int), E.Value (Maybe Int), E.Value (Maybe Int),
+            E.Value (Maybe Int)),
+           (E.Value (Maybe Int), E.Value (Maybe Int), E.Value (Maybe Int),
+            E.Value (Maybe Int), E.Value (Maybe Int), E.Value (Maybe Int),
+            E.Value (Maybe Int), E.Value (Maybe Int), E.Value (Maybe Int),
+            E.Value (Maybe Int))) -> Conduit i m [[Pair]]
+toAesonList (
+  E.Value earNum, E.Value name, E.Value birth,
+  E.Value sex, E.Value ownerName ,
+  (E.Value t1, E.Value  t2, E.Value  t3, E.Value  t4, E.Value  t5,
+   E.Value t6, E.Value  t7, E.Value  t8, E.Value  t9, E.Value t10),
+  (E.Value t11, E.Value t12, E.Value t13, E.Value t14, E.Value t15,
+   E.Value t16, E.Value t17, E.Value t18, E.Value t19, E.Value t20),
+  (E.Value t21, E.Value t22, E.Value t23, E.Value t24, E.Value t25,
+   E.Value t26, E.Value t27, E.Value t28, E.Value t29, E.Value t30),
+  (E.Value t31, E.Value t32, E.Value t33, E.Value t34, E.Value t35,
+   E.Value t36, E.Value t37, E.Value t38, E.Value t39, E.Value t40),
+  (E.Value t41, E.Value t42, E.Value t43, E.Value t44, E.Value t45,
+   E.Value t46, E.Value t47, E.Value t48, E.Value t49, E.Value t50))
+  = yield [
+     ["ear_num".= earNum]
+    ,["name" .= name]
+    ,["birth" .= birth]
+    ,["sex" .= sex]
+    ,["owner_name" .= ownerName]
+    ,["t1"  .=  t1, "t2" .=  t2, "t3" .=  t3, "t4" .=  t4,  "t5" .=  t5
+     ,"t6"  .=  t6, "t7" .=  t7, "t8" .=  t8, "t9" .=  t9,"t10" .= t10]
+    ,["t11" .= t11,"t12" .= t12,"t13" .= t13,"t14" .= t14,"t15" .= t15,
+      "t16" .= t16,"t17" .= t17,"t18" .= t18,"t19" .= t19,"t20" .= t20]
+    ,["t21" .= t21,"t22" .= t22,"t23" .= t23,"t24" .= t24,"t25" .= t25,
+      "t26" .= t26,"t27" .= t27,"t28" .= t28,"t29" .= t29,"t30" .= t30]
+    ,["t31" .= t31,"t32" .= t32,"t33" .= t33,"t34" .= t34,"t35" .= t35,
+      "t36" .= t36,"t37" .= t37,"t38" .= t38,"t39" .= t39,"t40" .= t40]
+    ,["t41" .= t41,"t42" .= t42,"t43" .= t43,"t44" .= t44,"t45" .= t45,
+      "t46" .= t46,"t47" .= t47,"t48" .= t48,"t49" .= t49,"t50" .= t50]]
+
+filterAesonList :: MonadResource m =>
+                   [Bool] -> [[Pair]] -> Conduit i m [[Pair]]
+filterAesonList flags  = \i -> (yield $ [e | (f,e)<- zip flags i, f])
+--  yield $ concat $ map snd $ filter (\(f,e)->f) $ zip flags i
+
+-- output :: [[Pair]] -> Monad m => Conduit [[Pair]] m ()
+outputAesonList = outputAesonList' True
+  where
+    outputAesonList' first = do
+      when first $ sendChunkLBS "["
+      ma <- await
+      case ma of
+       Nothing -> sendChunkLBS "]"
+       Just  a -> do
+         when (not first) $ sendChunkLBS ",\n"
+         sendChunkLBS $ encode . object $ concat a
+         outputAesonList' False
 
 getKineR :: Handler Html
 getKineR = defaultLayout $ do
@@ -243,73 +304,74 @@ getKineJsonR = do
   let name = nameConv name'
       owner = (read $ T.unpack $ ownerConv owner') 
   -- liftIO $ print flags
-  respondSourceDB typeJson $ cowsSrc name owner $= awaitForever toBuilder
+  respondSourceDB typeJson $
+    (cowsSrc2 name owner) $=
+    (awaitForever toAesonList2) $=
+    outputAesonList
     where
         nameConv (Just name) = name
         nameConv (Nothing) = T.pack "%"
         ownerConv (Just id) = id
         ownerConv (Nothing) = T.pack "5"
-        cowsSrc name owner = 
-          E.selectSource
-            $ E.from $ \(kine) -> do
-                E.where_ $ (kine ^. KineOwnerId E.==. E.valkey owner)
-                           E.&&. ( kine ^. KineName `E.like` E.val name)
-                return $ ( kine ^. KineId,
-                  kine ^. KineEarNum, kine ^. KineName, kine ^. KineBirth,
-                  kine ^. KineSex, kine ^. KineOwnerId,
-                  (kine ^. KineT1, kine ^. KineT2, kine ^. KineT3, kine ^. KineT4,
-                   kine ^. KineT5, kine ^. KineT6, kine ^. KineT7, kine ^. KineT8,
-                   kine ^. KineT9, kine ^. KineT10),
-                  (kine ^. KineT11, kine ^. KineT12, kine ^. KineT13, kine ^. KineT14,
-                   kine ^. KineT15, kine ^. KineT16, kine ^. KineT17, kine ^. KineT18,
-                   kine ^. KineT19, kine ^. KineT20),
-                  (kine ^. KineT21, kine ^. KineT22, kine ^. KineT23, kine ^. KineT24,
-                   kine ^. KineT25, kine ^. KineT26, kine ^. KineT27, kine ^. KineT28,
-                   kine ^. KineT29, kine ^. KineT30),
-                  (kine ^. KineT31, kine ^. KineT32, kine ^. KineT33, kine ^. KineT34,
-                   kine ^. KineT35, kine ^. KineT36, kine ^. KineT37, kine ^. KineT38,
-                   kine ^. KineT39, kine ^. KineT40),
-                  (kine ^. KineT41, kine ^. KineT42, kine ^. KineT43, kine ^. KineT44,
-                   kine ^. KineT45, kine ^. KineT46, kine ^. KineT47, kine ^. KineT48,
-                   kine ^. KineT49, kine ^. KineT50))
-        toBuilder (E.Value id, E.Value earNum, E.Value name, E.Value birth,
-          E.Value sex, E.Value ownerId ,
-          (E.Value t1, E.Value  t2, E.Value  t3, E.Value  t4, E.Value  t5,
-          E.Value t6, E.Value  t7, E.Value  t8, E.Value  t9, E.Value t10),
-          (E.Value t11, E.Value t12, E.Value t13, E.Value t14, E.Value t15,
-          E.Value t16, E.Value t17, E.Value t18, E.Value t19, E.Value t20),
-          (E.Value t21, E.Value t22, E.Value t23, E.Value t24, E.Value t25,
-          E.Value t26, E.Value t27, E.Value t28, E.Value t29, E.Value t30),
-          (E.Value t31, E.Value t32, E.Value t33, E.Value t34, E.Value t35,
-          E.Value t36, E.Value t37, E.Value t38, E.Value t39, E.Value t40),
-          (E.Value t41, E.Value t42, E.Value t43, E.Value t44, E.Value t45,
-          E.Value t46, E.Value t47, E.Value t48, E.Value t49, E.Value t50))
-          = do 
-            sendChunkLBS $ encode $ object $ aesonList
-            where
-              aesonList = [
-                "id" .= id
-                ,"ear_num".= earNum
-                ,"name" .= name
-                ,"birth" .= birth
-                ,"sex" .= sex
-                ,"owner_id" .= ownerId
-                ,"t1"  .=  t1, "t2" .=  t2, "t3" .=  t3, "t4" .=  t4,  "t5" .=  t5
-                 ,"t6"  .=  t6, "t7" .=  t7, "t8" .=  t8, "t9" .=  t9,"t10" .= t10
-                ,"t11" .= t11,"t12" .= t12,"t13" .= t13,"t14" .= t14,"t15" .= t15,
-                  "t16" .= t16,"t17" .= t17,"t18" .= t18,"t19" .= t19,"t20" .= t20
-                ,"t21" .= t21,"t22" .= t22,"t23" .= t23,"t24" .= t24,"t25" .= t25,
-                  "t26" .= t26,"t27" .= t27,"t28" .= t28,"t29" .= t29,"t30" .= t30
-                ,"t31" .= t31,"t32" .= t32,"t33" .= t33,"t34" .= t34,"t35" .= t35,
-                  "t36" .= t36,"t37" .= t37,"t38" .= t38,"t39" .= t39,"t40" .= t40
-                ,"t41" .= t41,"t42" .= t42,"t43" .= t43,"t44" .= t44,"t45" .= t45,
-                  "t46" .= t46,"t47" .= t47,"t48" .= t48,"t49" .= t49,"t50" .= t50]
+
+cowsSrc2 name owner = 
+  E.selectSource
+    $ E.from $ \(kine) -> do
+      E.where_ $ (kine ^. KineOwnerId E.==. E.valkey owner)
+                 E.&&. ( kine ^. KineName `E.like` E.val name)
+      return 
+        (  
+          kine ^. KineId,
+          kine ^. KineEarNum, kine ^. KineName, kine ^. KineBirth,
+          kine ^. KineSex, kine ^. KineOwnerId,
+          (kine ^. KineT1, kine ^. KineT2, kine ^. KineT3, kine ^. KineT4,
+           kine ^. KineT5, kine ^. KineT6, kine ^. KineT7, kine ^. KineT8,
+           kine ^. KineT9, kine ^. KineT10),
+          (kine ^. KineT11, kine ^. KineT12, kine ^. KineT13, kine ^. KineT14,
+           kine ^. KineT15, kine ^. KineT16, kine ^. KineT17, kine ^. KineT18,
+           kine ^. KineT19, kine ^. KineT20),
+          (kine ^. KineT21, kine ^. KineT22, kine ^. KineT23, kine ^. KineT24,
+           kine ^. KineT25, kine ^. KineT26, kine ^. KineT27, kine ^. KineT28,
+           kine ^. KineT29, kine ^. KineT30),
+          (kine ^. KineT31, kine ^. KineT32, kine ^. KineT33, kine ^. KineT34,
+           kine ^. KineT35, kine ^. KineT36, kine ^. KineT37, kine ^. KineT38,
+           kine ^. KineT39, kine ^. KineT40),
+          (kine ^. KineT41, kine ^. KineT42, kine ^. KineT43, kine ^. KineT44,
+           kine ^. KineT45, kine ^. KineT46, kine ^. KineT47, kine ^. KineT48,
+           kine ^. KineT49, kine ^. KineT50))
+
+toAesonList2 (
+  E.Value id, E.Value earNum, E.Value name, E.Value birth,
+  E.Value sex, E.Value ownerId ,
+  (E.Value t1, E.Value  t2, E.Value  t3, E.Value  t4, E.Value  t5,
+   E.Value t6, E.Value  t7, E.Value  t8, E.Value  t9, E.Value t10),
+  (E.Value t11, E.Value t12, E.Value t13, E.Value t14, E.Value t15,
+   E.Value t16, E.Value t17, E.Value t18, E.Value t19, E.Value t20),
+  (E.Value t21, E.Value t22, E.Value t23, E.Value t24, E.Value t25,
+   E.Value t26, E.Value t27, E.Value t28, E.Value t29, E.Value t30),
+  (E.Value t31, E.Value t32, E.Value t33, E.Value t34, E.Value t35,
+   E.Value t36, E.Value t37, E.Value t38, E.Value t39, E.Value t40),
+  (E.Value t41, E.Value t42, E.Value t43, E.Value t44, E.Value t45,
+   E.Value t46, E.Value t47, E.Value t48, E.Value t49, E.Value t50))
+  = yield [[
+      "id" .= id,"ear_num".= earNum,"name" .= name,"birth" .= birth
+     ,"sex" .= sex,"owner_id" .= ownerId
+     ,"t1"  .=  t1, "t2" .=  t2, "t3" .=  t3, "t4" .=  t4,  "t5" .=  t5
+     ,"t6"  .=  t6, "t7" .=  t7, "t8" .=  t8, "t9" .=  t9,"t10" .= t10
+     ,"t11" .= t11,"t12" .= t12,"t13" .= t13,"t14" .= t14,"t15" .= t15,
+      "t16" .= t16,"t17" .= t17,"t18" .= t18,"t19" .= t19,"t20" .= t20
+     ,"t21" .= t21,"t22" .= t22,"t23" .= t23,"t24" .= t24,"t25" .= t25,
+      "t26" .= t26,"t27" .= t27,"t28" .= t28,"t29" .= t29,"t30" .= t30
+     ,"t31" .= t31,"t32" .= t32,"t33" .= t33,"t34" .= t34,"t35" .= t35,
+      "t36" .= t36,"t37" .= t37,"t38" .= t38,"t39" .= t39,"t40" .= t40
+     ,"t41" .= t41,"t42" .= t42,"t43" .= t43,"t44" .= t44,"t45" .= t45,
+      "t46" .= t46,"t47" .= t47,"t48" .= t48,"t49" .= t49,"t50" .= t50]]
 
 openConnectionCount :: Int
 openConnectionCount = 10
 
 connStr = "host=localhost dbname=cow_table user=hirofumi password='hello'"
--- connStr = "host=my-db-instance.ch8pskdbgy45.ap-northeast-1.rds.amazonaws.com dbname=cow_table user=hirofumi password='############'"
+-- connStr = "host=my-db-instance.ch8pskdbgy45.ap-northeast-1.rds.amazonaws.com dbname=cow_table user=hirofumi password='XXXXXXXXXXXX'"
 
 main :: IO ()
 main = do
