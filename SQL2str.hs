@@ -45,7 +45,7 @@ getHomeR = do
 <h1>表示項目の選択と、クエリの入力
 <form action=@{SQL2strR} method="GET">
     SQL:
-    <input name="SQL" type="text" value="SELECT to_json(*) FROM cow_table where name LIKE 'ハナ%'">
+    <input name="SQL" type="text" value="select json_agg(kine) from kine where owner_id = 5">
     <p>
     <input type="submit" value="送信">
                  |]
@@ -60,18 +60,21 @@ getSQL2strR = do
       queryConv (Just "") = defaultQuery
       queryConv (Just query) = query
       queryConv Nothing = defaultQuery
-      defaultQuery = "SELECT to_json(kine) FROM kine where ownerId = 1"
+      defaultQuery = "select json_agg(kine) from kine where owner_id = 5"
 
 -- sendJSONs :: Monad m => [PersistValue] -> Conduit [PersistValue]  () m 
-sendJSONs = \j -> mapM_ (sendChunk . show) j
+sendJSONs = \j -> mapM_ sendChunkPersist j
+  where
+    sendChunkPersist (PersistByteString bs) = sendChunkBS bs
+    sendChunkPersist s                       = (sendChunk . show) s
 
 numConn = 10
 connStr = "host=localhost dbname=cow_table user=hirofumi password='hello'"
--- connStr = "host=my-db-instance.ch8pskdbgy45.ap-northeast-1.rds.amazonaws.com dbname=cow_table user=hirofumi password='############'"
+-- connStr = "host=my-db-instance.ch8pskdbgy45.ap-northeast-1.rds.amazonaws.com dbname=cow_table user=hirofumi password='XXXXXXXXXXXX'"
 
 main :: IO ()
 main = do
   -- connStr' <- readFile "connStr.conf"
   -- connStr <- BS.pack $ connStr'
   runStderrLoggingT $ withPostgresqlPool connStr numConn $ \pool -> liftIO $ do
-    warp 3001 $ App {appPool = pool}
+    warp 3002 $ App {appPool = pool}
